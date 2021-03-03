@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 
 use regex::Regex;
+use std::fs::File;
+use std::io::{BufReader, BufRead};
+use std::fs;
+use std::error::Error;
 
 struct Passport {
     _birth_year: String,
@@ -13,18 +17,27 @@ struct Passport {
     _country_id: Option<String>,
 }
 
-fn main() {
-    let regex = Regex::new("([^: .]+):([^: .]+)").unwrap();
-    let raw_passport_1 = String::from("ecl:gry pid:860033327 eyr:2020 hcl:#fffffd byr:1937 iyr:2017 cid:147 hgt:183cm");
+fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
+    let regex = Regex::new("([^: .]+):([^: .]+)")?;
+    let input = fs::read_to_string("res/input.txt")?;
 
-    let raw_data: HashMap<&str, &str> = regex.captures_iter(raw_passport_1.as_str())
-        .filter_map(|captures| Some((captures.get(1)?.as_str(), captures.get(2)?.as_str())))
-        .collect();
+    let raw_passports = input
+        .split("\n\n") // split by empty lines
+        .map(|p| p.replace("\n", " "))// each passport entry in one line
+        .collect::<Vec<String>>();
 
-    match build_passport(&raw_data) {
-        None => { println!("Passport is not valid") }
-        Some(_) => { println!("Passport is valid") }
-    }
+    let passports = raw_passports.iter()
+        .map(|p|
+            regex.captures_iter(p)
+                .filter_map(|captures| Some((captures.get(1)?.as_str(), captures.get(2)?.as_str())))
+                .collect::<HashMap<&str, &str>>()
+        )
+        .filter_map(|map| build_passport(&map))
+        .collect::<Vec<Passport>>();
+
+    println!("Parsed {} passports", passports.len());
+
+    Ok(())
 }
 
 fn build_passport(raw_data: &HashMap<&str, &str>) -> Option<Passport> {
