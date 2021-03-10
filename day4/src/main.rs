@@ -4,38 +4,6 @@ use std::str::FromStr;
 
 use regex::Regex;
 
-struct Passport {
-    _birth_year: Year,
-    _issue_year: Year,
-    _expiration_year: Year,
-    _height: String,
-    _hair_color: String,
-    _eye_color: String,
-    _passport_id: String,
-    _country_id: Option<String>,
-}
-
-struct YearRange {
-    value: (usize, usize),
-}
-
-impl YearRange {
-    fn new(range: (usize, usize)) -> Option<Self> {
-        return if range.0 < range.1 { Some(YearRange { value: range }) } else { None };
-    }
-}
-
-struct Year {
-    _value: usize,
-}
-
-impl Year {
-    fn new(value: &str, range: YearRange) -> Option<Self> {
-        let v = usize::from_str(value).ok()?;
-        return if v >= range.value.0 && v <= range.value.1 { Some(Year { _value: v }) } else { None };
-    }
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
     let regex = Regex::new("([^: .]+):([^: .]+)")?;
     let input = fs::read_to_string("res/input.txt")?;
@@ -45,31 +13,62 @@ fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
         .map(|p| p.replace("\n", " "))// each passport entry in one line
         .collect::<Vec<String>>();
 
+
     let passports = raw_passports.iter()
         .map(|p|
             regex.captures_iter(p)
                 .filter_map(|captures| Some((captures.get(1)?.as_str(), captures.get(2)?.as_str())))
                 .collect::<HashMap<&str, &str>>()
         )
-        .filter_map(|map| build_passport(&map))
-        .collect::<Vec<Passport>>();
+        .filter(|map| is_passport_valid(map))
+        .count();
 
-    println!("Parsed {} passports", passports.len());
+    println!("Valid passports: {}", passports);
 
     Ok(())
 }
 
-fn build_passport(raw_data: &HashMap<&str, &str>) -> Option<Passport> {
-    Some(
-        Passport {
-            _birth_year: Year::new(raw_data.get("byr")?, YearRange::new((1920, 2002))?)?,
-            _issue_year: Year::new(raw_data.get("iyr")?, YearRange::new((2010, 2020))?)?,
-            _expiration_year: Year::new(raw_data.get("eyr")?, YearRange::new((2020, 2030))?)?,
-            _height: raw_data.get("hgt")?.to_string(),
-            _hair_color: raw_data.get("hcl")?.to_string(),
-            _eye_color: raw_data.get("ecl")?.to_string(),
-            _passport_id: raw_data.get("pid")?.to_string(),
-            _country_id: None,
-        }
-    )
+fn is_passport_valid(passports: &HashMap<&str, &str>) -> bool {
+    passports.iter()
+        .all(|(&k, v)|
+            match k {
+                "byr" => match v.parse::<i32>() {
+                    Ok(v) => (1920..=2002).contains(&v),
+                    _ => false
+                },
+                "iyr" => match v.parse::<i32>() {
+                    Ok(b) => (2010..=2020).contains(&b),
+                    _ => false
+                },
+                "eyr" => match v.parse::<i32>() {
+                    Ok(b) => (2020..=2030).contains(&b),
+                    _ => false
+                },
+                "hgt" => is_height_valid(v).unwrap_or(false),
+                "hcl" => is_hair_color_valid(v).unwrap_or(false),
+                "ecl" => is_eye_color_valid(v).unwrap_or(false),
+                "pid" => v.len() <= 9 && usize::from_str(v).is_ok(),
+                _ => false,
+            }
+        )
+}
+
+fn is_height_valid(height: &str) -> Option<bool> {
+    let regex = Regex::new("([0-9]+)(cm|in)").ok()?;
+    let captures = regex.captures(height)?;
+    match (captures.get(2)?.as_str(), captures.get(1).unwrap().as_str().parse::<i32>().ok()?) {
+        ("cm", v) => Some((150..=193).contains(&v)),
+        ("in", v) => Some((59..=76).contains(&v)),
+        _ => None
+    }
+}
+
+fn is_hair_color_valid(hair_color: &str) -> Option<bool> {
+    let regex = Regex::new("#[a-f0-9]{6}").ok()?;
+    Some(regex.is_match(hair_color))
+}
+
+fn is_eye_color_valid(eye_color: &str) -> Option<bool> {
+    let regex = Regex::new("(amb|blu|brn|gry|grn|hzl|oth)").ok()?;
+    Some(regex.is_match(eye_color))
 }
