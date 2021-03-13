@@ -1,36 +1,46 @@
 use std::fs;
 use std::ops::Range;
 
-fn main() {
-    println!("Hello, world!");
-    let row = parse_row("BBFFBBF", 0..127);
-    let column = parse_column("RLL", 0..7);
+fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
+    let mut ids = get_ids().unwrap_or(vec![]);
 
-    let seat_id = row * 8 + column;
-    println!("id: {}, Row: {}, Column: {}", seat_id, row, column);
-
-    match binary_boarding_1() {
+    match ids.iter().max() {
         None => { panic!("Could not find highest seat ID") }
         Some(max_seat_id) => { println!("Max seat id: {}", max_seat_id) }
     }
+
+    match find_seat_number(&mut ids) {
+        None => { panic!("Could not find my seat ID") }
+        Some(my_seat_number) => { println!("My seat id: {}", my_seat_number) }
+    }
+    Ok(())
 }
 
-// Highest seat id
-fn binary_boarding_1() -> Option<usize> {
+fn get_ids() -> Option<Vec<usize>> {
     let input = fs::read_to_string("res/input.txt").ok()?;
     let boarding_passes = input
         .split_ascii_whitespace()
         .filter(|s| !s.is_empty())
         .collect::<Vec<&str>>();
 
-    boarding_passes.iter()
-        .map(|bp| {
-            let row = parse_row(&bp[..7], 0..127);
-            let column = parse_column(&bp[7..], 0..7);
-            row * 8 + column
-        }
-        )
-        .max()
+    Some(
+        boarding_passes.iter()
+            .map(|bp| {
+                let row = parse_row(&bp[..7], 0..127);
+                let column = parse_column(&bp[7..], 0..7);
+                row * 8 + column
+            }
+            )
+            .collect::<Vec<usize>>()
+    )
+}
+
+fn find_seat_number(ids: &mut Vec<usize>) -> Option<usize> {
+    ids.sort();
+    for window in ids.windows(2) {
+        if window[1] - window[0] == 2 { return Some(window[1] - 1); }
+    }
+    None
 }
 
 fn parse_row(rows: &str, range: Range<usize>) -> usize {
